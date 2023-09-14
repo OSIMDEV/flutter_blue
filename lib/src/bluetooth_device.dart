@@ -82,6 +82,7 @@ class BluetoothDevice {
 
     for (final r in await response) {
       print('ble discover response : ${r.deviceId}');
+      print('ble discover response : ${r.uuid}');
     }
 
     return response;
