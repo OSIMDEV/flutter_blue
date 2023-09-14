@@ -55,6 +55,7 @@ class BluetoothDevice {
   Future<List<BluetoothService>> discoverServices() async {
     final s = await state.first;
     if (s != BluetoothDeviceState.connected) {
+      print('ble discover not connected');
       return Future.error(new Exception(
           'Cannot discoverServices while device is not connected. State == $s'));
     }
@@ -72,10 +73,14 @@ class BluetoothDevice {
       return list;
     });
 
+    print('ble discover response : $response');
+
     await FlutterBlue.instance._channel
         .invokeMethod('discoverServices', id.toString());
 
     _isDiscoveringServices.add(true);
+
+    print('ble discover response: $response');
 
     return response;
   }
