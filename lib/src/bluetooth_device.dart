@@ -73,16 +73,16 @@ class BluetoothDevice {
       return list;
     });
 
-    for (final r in await response) {
-      print('ble discover response : ${r.deviceId}');
-    }
-
     await FlutterBlue.instance._channel
         .invokeMethod('discoverServices', id.toString());
 
     _isDiscoveringServices.add(true);
 
     print('ble discover response: $response');
+
+    for (final r in await response) {
+      print('ble discover response : ${r.deviceId}');
+    }
 
     return response;
   }
