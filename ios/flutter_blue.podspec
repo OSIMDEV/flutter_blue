@@ -29,4 +29,11 @@ Bluetooth Low Energy plugin for Flutter.
   # Flutter.framework does not contain a i386 slice. Only x86_64 simulators are supported.
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'VALID_ARCHS[sdk=iphonesimulator*]' => 'x86_64', 'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) GPB_USE_PROTOBUF_FRAMEWORK_IMPORTS=1', }
 
+  # Ensure protobuf files are generated before building
+  s.script_phase = {
+    :name => 'Generate Protobuf Files',
+    :script => 'if [ -x "${PODS_TARGET_SRCROOT}/Scripts/setup_protobuf.sh" ]; then "${PODS_TARGET_SRCROOT}/Scripts/setup_protobuf.sh"; fi',
+    :execution_position => :before_compile
+  }
+
 end

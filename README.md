@@ -184,6 +184,15 @@ For location permissions on iOS see more at: [https://developer.apple.com/docume
 | write                       |  :white_check_mark:  |  :white_check_mark:  | Writes the value of the descriptor. |
 
 ## Troubleshooting
+
+### iOS Protobuf Files Missing
+If you encounter an error like:
+```
+No such file or directory: .../ios/gen/Flutterblue.pbobjc.h
+```
+
+This indicates the protobuf files are missing. See [iOS_SETUP.md](iOS_SETUP.md) for detailed instructions on how to fix this issue.
+
 ### When I scan using a service UUID filter, it doesn't find any devices.
 Make sure the device is advertising which service UUID's it supports.  This is found in the advertisement
 packet as **UUID 16 bit complete list** or **UUID 128 bit complete list**.
