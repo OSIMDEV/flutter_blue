@@ -1,59 +1,105 @@
 #!/bin/bash
 
-# Copyright 2017, Paul DeMarco.
-# All rights reserved. Use of this source code is governed by a
-# BSD-style license that can be found in the LICENSE file.
-
-# Script to generate protobuf files for flutter_blue
+# flutter_blue Protobuf Setup Script
+# This script ensures proper protobuf file generation with version compatibility
 
 set -e
 
-# Get the directory of this script
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+echo "🔧 flutter_blue Protobuf Setup"
+echo "==============================="
 
-echo "Setting up protobuf files for flutter_blue..."
-echo "Project root: $PROJECT_ROOT"
+# Check for required tools
+echo "📋 Checking dependencies..."
 
-# Try to use protobuf@21 for compatibility, fallback to default protoc
-PROTOC_CMD="protoc"
-if [ -f "/opt/homebrew/opt/protobuf@21/bin/protoc" ]; then
-    PROTOC_CMD="/opt/homebrew/opt/protobuf@21/bin/protoc"
-    echo "Using compatible protoc from protobuf@21"
-elif [ -f "/usr/local/opt/protobuf@21/bin/protoc" ]; then
-    PROTOC_CMD="/usr/local/opt/protobuf@21/bin/protoc"
-    echo "Using compatible protoc from protobuf@21"
-fi
-
-# Check if protoc is available
-if ! command -v "$PROTOC_CMD" &> /dev/null; then
-    echo "Error: protoc (Protocol Buffer Compiler) is not installed."
-    echo "Please install a compatible protoc version:"
-    echo "  macOS: brew install protobuf@21"
-    echo "  Linux: Download protoc 21.x from https://github.com/protocolbuffers/protobuf/releases"
+# Check for Dart
+if ! command -v dart &> /dev/null; then
+    echo "❌ Error: Dart is not installed or not in PATH"
+    echo "Please install Flutter/Dart first"
     exit 1
 fi
 
-# Get protoc version
-PROTOC_VERSION=$($PROTOC_CMD --version)
-echo "Using: $PROTOC_VERSION"
+# Check for protoc@21 (compatible version)
+PROTOC_PATH=""
+if [ -f "/opt/homebrew/opt/protobuf@21/bin/protoc" ]; then
+    PROTOC_PATH="/opt/homebrew/opt/protobuf@21/bin/protoc"
+    echo "✅ Found protoc@21: $PROTOC_PATH"
+elif command -v protoc &> /dev/null; then
+    PROTOC_PATH="protoc"
+    PROTOC_VERSION=$(protoc --version | grep -o '[0-9]\+\.[0-9]\+')
+    echo "⚠️  Found system protoc version $PROTOC_VERSION"
+    echo "   For best compatibility, install protobuf@21:"
+    echo "   brew install protobuf@21"
+else
+    echo "❌ Error: protoc not found"
+    echo "Please install protobuf:"
+    echo "   brew install protobuf@21"
+    exit 1
+fi
 
-# Create gen directories if they don't exist
-mkdir -p "$PROJECT_ROOT/ios/gen"
-mkdir -p "$PROJECT_ROOT/macos/gen"
-mkdir -p "$PROJECT_ROOT/lib/gen"
+# Check protoc_plugin version
+echo "📦 Checking protoc_plugin..."
+PLUGIN_VERSION=$(dart pub global list | grep protoc_plugin | head -1 | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "")
 
-# Generate Objective-C files for iOS and macOS
-echo "Generating Objective-C protobuf files..."
+if [ -z "$PLUGIN_VERSION" ]; then
+    echo "📥 Installing protoc_plugin 20.0.1 (compatible version)..."
+    dart pub global activate protoc_plugin 20.0.1
+elif [ "$PLUGIN_VERSION" != "20.0.1" ]; then
+    echo "⚠️  Found protoc_plugin $PLUGIN_VERSION"
+    echo "📥 Installing compatible version 20.0.1..."
+    dart pub global activate protoc_plugin 20.0.1
+else
+    echo "✅ protoc_plugin 20.0.1 already installed"
+fi
+
+# Create directories
+echo "📁 Creating directories..."
+mkdir -p ios/gen
+mkdir -p lib/gen
+
+# Get to project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -d "$SCRIPT_DIR/../../protos" ]; then
+    PROJECT_ROOT="$SCRIPT_DIR/../.."
+elif [ -d "$SCRIPT_DIR/../protos" ]; then
+    PROJECT_ROOT="$SCRIPT_DIR/.."
+elif [ -d "protos" ]; then
+    PROJECT_ROOT="."
+elif [ -d "../protos" ]; then
+    PROJECT_ROOT=".."
+elif [ -d "../../protos" ]; then
+    PROJECT_ROOT="../.."
+else
+    echo "❌ Error: Cannot find protos directory"
+    echo "Script location: $SCRIPT_DIR"
+    echo "Current directory: $(pwd)"
+    echo "Please ensure the flutter_blue package structure is intact"
+    exit 1
+fi
+
+echo "📁 Using project root: $PROJECT_ROOT"
+
+echo "🔧 Generating protobuf files..."
 cd "$PROJECT_ROOT/protos"
-$PROTOC_CMD --objc_out=../ios/gen ./flutterblue.proto
-$PROTOC_CMD --objc_out=../macos/gen ./flutterblue.proto
+
+# Generate iOS files
+echo "📱 Generating iOS files..."
+$PROTOC_PATH --objc_out=../ios/gen ./flutterblue.proto
 
 # Generate Dart files
-echo "Generating Dart protobuf files..."
-$PROTOC_CMD --dart_out=../lib/gen ./flutterblue.proto
+echo "🎯 Generating Dart files..."
+$PROTOC_PATH --dart_out=../lib/gen ./flutterblue.proto
 
-echo "Protobuf files generated successfully!"
-echo "iOS files: $PROJECT_ROOT/ios/gen/"
-echo "macOS files: $PROJECT_ROOT/macos/gen/"
-echo "Dart files: $PROJECT_ROOT/lib/gen/"
+# Verify generated files
+cd "$PROJECT_ROOT"
+if [ -f "ios/gen/Flutterblue.pbobjc.h" ] && [ -f "lib/gen/flutterblue.pb.dart" ]; then
+    echo "✅ Protobuf files generated successfully!"
+    echo ""
+    echo "Generated files:"
+    echo "  📱 iOS: ios/gen/Flutterblue.pbobjc.{h,m}"
+    echo "  🎯 Dart: lib/gen/flutterblue.pb.dart"
+    echo ""
+    echo "🎉 Setup complete! Your flutter_blue package is ready to use."
+else
+    echo "❌ Error: Failed to generate protobuf files"
+    exit 1
+fi
