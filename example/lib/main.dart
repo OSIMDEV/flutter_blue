@@ -8,6 +8,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'package:flutter_blue_example/widgets.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   runApp(FlutterBlueApp());
@@ -64,16 +65,83 @@ class BluetoothOffScreen extends StatelessWidget {
   }
 }
 
-class FindDevicesScreen extends StatelessWidget {
+class FindDevicesScreen extends StatefulWidget {
+  @override
+  _FindDevicesScreenState createState() => _FindDevicesScreenState();
+}
+
+class _FindDevicesScreenState extends State<FindDevicesScreen> {
+  bool _permissionsGranted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestPermissions();
+  }
+
+  Future<void> _requestPermissions() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.bluetoothAdvertise,
+      Permission.location,
+    ].request();
+
+    bool allGranted = statuses.values.every((status) =>
+        status == PermissionStatus.granted ||
+        status == PermissionStatus.limited);
+
+    setState(() {
+      _permissionsGranted = allGranted;
+    });
+  }
+
+  Future<void> _startScan() async {
+    if (!_permissionsGranted) {
+      await _requestPermissions();
+      if (!_permissionsGranted) return;
+    }
+
+    try {
+      await FlutterBlue.instance.startScan(timeout: Duration(seconds: 4));
+    } catch (e) {
+      print('Error starting scan: $e');
+      // Show a dialog or snackbar to the user
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error starting scan: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!_permissionsGranted) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Find Devices')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.bluetooth_disabled, size: 100, color: Colors.grey),
+              SizedBox(height: 20),
+              Text('Bluetooth permissions required'),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _requestPermissions,
+                child: Text('Grant Permissions'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Find Devices'),
       ),
       body: RefreshIndicator(
-        onRefresh: () =>
-            FlutterBlue.instance.startScan(timeout: Duration(seconds: 4)),
+        onRefresh: _startScan,
         child: SingleChildScrollView(
           child: Column(
             children: <Widget>[
@@ -82,7 +150,7 @@ class FindDevicesScreen extends StatelessWidget {
                     .asyncMap((_) => FlutterBlue.instance.connectedDevices),
                 initialData: [],
                 builder: (c, snapshot) => Column(
-                  children: snapshot.data!
+                  children: (snapshot.data ?? [])
                       .map((d) => ListTile(
                             title: Text(d.name),
                             subtitle: Text(d.id.toString()),
@@ -111,7 +179,7 @@ class FindDevicesScreen extends StatelessWidget {
                 stream: FlutterBlue.instance.scanResults,
                 initialData: [],
                 builder: (c, snapshot) => Column(
-                  children: snapshot.data!
+                  children: (snapshot.data ?? [])
                       .map(
                         (r) => ScanResultTile(
                           result: r,
@@ -133,7 +201,7 @@ class FindDevicesScreen extends StatelessWidget {
         stream: FlutterBlue.instance.isScanning,
         initialData: false,
         builder: (c, snapshot) {
-          if (snapshot.data!) {
+          if (snapshot.data == true) {
             return FloatingActionButton(
               child: Icon(Icons.stop),
               onPressed: () => FlutterBlue.instance.stopScan(),
@@ -141,9 +209,7 @@ class FindDevicesScreen extends StatelessWidget {
             );
           } else {
             return FloatingActionButton(
-                child: Icon(Icons.search),
-                onPressed: () => FlutterBlue.instance
-                    .startScan(timeout: Duration(seconds: 4)));
+                child: Icon(Icons.search), onPressed: _startScan);
           }
         },
       ),
@@ -257,7 +323,7 @@ class DeviceScreen extends StatelessWidget {
                   stream: device.isDiscoveringServices,
                   initialData: false,
                   builder: (c, snapshot) => IndexedStack(
-                    index: snapshot.data! ? 1 : 0,
+                    index: (snapshot.data == true) ? 1 : 0,
                     children: <Widget>[
                       IconButton(
                         icon: Icon(Icons.refresh),
@@ -295,7 +361,7 @@ class DeviceScreen extends StatelessWidget {
               initialData: [],
               builder: (c, snapshot) {
                 return Column(
-                  children: _buildServiceTiles(snapshot.data!),
+                  children: _buildServiceTiles(snapshot.data ?? []),
                 );
               },
             ),
